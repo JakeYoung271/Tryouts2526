@@ -6,6 +6,7 @@ import requests
 from io import StringIO
 import json
 import time
+import csv
 from datetime import datetime
 
 # Initialize Dash app with Bootstrap theme for mobile responsiveness
@@ -163,55 +164,35 @@ def get_tournament_rounds(user_id):
         print(f"Error getting tournament rounds: {e}")
         return None
 
-def submit_results(round_data, results):
+def submit_results(round_data, results, username):
     """Submit results to Google Sheets"""
     try:
         # Since we can't directly write to public Google Sheets via CSV export,
         # we need an alternative approach. Here are the options:
         
         # Prepare the data that would be submitted
+
+        form_url = "https://docs.google.com/forms/d/e/1FAIpQLSe4-6_u7UkQ6bmrKQj8mxcqgDF82v6DDjDA2pk3WaJKIyzc8g/formResponse"
         new_row_data = {
-            'Round': round_data['Round'],
-            'Net_Number': round_data['Net Number'], 
-            'id1': round_data['id1'],
-            'id2': round_data['id2'],
-            'id3': round_data['id3'],
-            'id4': round_data['id4'],
-            'Match1_Result': results[0],  # 1 if left team won, 0 if right team won
-            'Match2_Result': results[1],
-            'Match3_Result': results[2],
-            'Timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            'entry.175605993': round_data['Round'],
+            'entry.38731083': round_data['Net Number'],
+            'entry.1960261060': round_data['id1'],
+            'entry.791831527': round_data['id2'],
+            'entry.40405346': round_data['id3'],
+            'entry.751547352': round_data['id4'],
+            'entry.1089736874': results[0],
+            'entry.1449374216': results[1],
+            'entry.1388039134': results[2],
+            'entry.2146235891': username
         }
-        
+        #entry.38731083
+
         print(f"Results to submit: {new_row_data}")
+        r = requests.post(form_url, data=new_row_data, timeout=10)
+        if r.status_code != 200 and r.status_code != 302:
+            print("Failed:", r.status_code)
+        time.sleep(0.15)  # be gentle; Forms may throttle
         
-        # OPTION 1: Google Form submission (recommended)
-        # If you create a Google Form that feeds into your results sheet, 
-        # you can submit data like this:
-        # form_url = "https://docs.google.com/forms/d/e/YOUR_FORM_ID/formResponse"
-        # form_data = {
-        #     'entry.FIELD_ID_FOR_ROUND': round_data['Round'],
-        #     'entry.FIELD_ID_FOR_NET': round_data['Net Number'],
-        #     'entry.FIELD_ID_FOR_ID1': round_data['id1'],
-        #     'entry.FIELD_ID_FOR_ID2': round_data['id2'],
-        #     'entry.FIELD_ID_FOR_ID3': round_data['id3'],
-        #     'entry.FIELD_ID_FOR_ID4': round_data['id4'],
-        #     'entry.FIELD_ID_FOR_MATCH1': results[0],
-        #     'entry.FIELD_ID_FOR_MATCH2': results[1],
-        #     'entry.FIELD_ID_FOR_MATCH3': results[2]
-        # }
-        # response = requests.post(form_url, data=form_data)
-        # return response.status_code == 200
-        
-        # OPTION 2: Google Apps Script Web App
-        # You can create a Google Apps Script that accepts POST requests
-        # and writes to your sheet. Then uncomment and use:
-        # apps_script_url = "YOUR_APPS_SCRIPT_WEB_APP_URL"
-        # response = requests.post(apps_script_url, json=new_row_data)
-        # return response.status_code == 200
-        
-        # For now, we'll simulate success and log the data
-        # In a real implementation, uncomment one of the above methods
         print("✅ Results logged successfully (using demo mode)")
         return True
         
@@ -501,9 +482,10 @@ def update_input_style(error_message):
     [State('match1-radio', 'value'),
      State('match2-radio', 'value'),
      State('match3-radio', 'value'),
-     State('current-round-data', 'data')]
+     State('current-round-data', 'data'),
+     State('user-data', 'data')]
 )
-def handle_submit(n_clicks, match1, match2, match3, round_data):
+def handle_submit(n_clicks, match1, match2, match3, round_data, user_data):
     if not n_clicks or not round_data:
         return "", "", {'submitted': False, 'round': None}
     
@@ -519,7 +501,7 @@ def handle_submit(n_clicks, match1, match2, match3, round_data):
     ]
     
     # Submit results
-    success = submit_results(round_data, results)
+    success = submit_results(round_data, results, user_data['name'])
     
     if success:
         return "", "", {'submitted': True, 'round': round_data['Round']}
