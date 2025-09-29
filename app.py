@@ -232,13 +232,20 @@ app.layout = dbc.Container([
                         
                         html.Hr(),
                         
-                        html.P("If you haven't filled out the form, please fill it out:", 
-                              className="mb-3 fs-6"),
-                        
-                        dbc.Button("Fill Out Interest Form", 
-                                 href="https://docs.google.com/forms/u/1/d/e/1FAIpQLSdY8THwf05cBQXt5Zih-4nsAAXl64vNoqCpgPu4ltTnylX9bg/viewform",
-                                 color="success", size="sm", className="w-100",
-                                 external_link=True)
+                        html.Div(
+                            [
+                                html.P(
+                                    "If you haven't filled out the form, please fill it out:",
+                                    className="mb-0 me-2 fs-6"
+                                ),
+                                html.A(
+                                    "Interest Form",
+                                    href="https://docs.google.com/forms/u/1/d/e/1FAIpQLSdY8THwf05cBQXt5Zih-4nsAAXl64vNoqCpgPu4ltTnylX9bg/viewform",
+                                    target="_blank"
+                                )
+                            ],
+                            className="d-flex align-items-center"
+                        )
                     ])
                 ], className="shadow")
             ], width=12, md=8, lg=6, className="mx-auto")
