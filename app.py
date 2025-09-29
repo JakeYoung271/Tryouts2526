@@ -237,7 +237,7 @@ app.layout = dbc.Container([
                         
                         dbc.Button("Fill Out Interest Form", 
                                  href="https://docs.google.com/forms/u/1/d/e/1FAIpQLSdY8THwf05cBQXt5Zih-4nsAAXl64vNoqCpgPu4ltTnylX9bg/viewform",
-                                 color="success", size="lg", className="w-100",
+                                 color="success", size="sm", className="w-100",
                                  external_link=True)
                     ])
                 ], className="shadow")
