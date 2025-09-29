@@ -11,6 +11,7 @@ from datetime import datetime
 
 # Initialize Dash app with Bootstrap theme for mobile responsiveness
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+server = app.server
 app.title = "Spikeball Tournament"
 app.config.suppress_callback_exceptions = True
 
