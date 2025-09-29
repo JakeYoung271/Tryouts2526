@@ -501,7 +501,7 @@ def handle_submit(n_clicks, match1, match2, match3, round_data, user_data):
     ]
     
     # Submit results
-    success = submit_results(round_data, results, user_data['id'])
+    success = submit_results(round_data, results, user_data['row'])
     
     if success:
         return "", "", {'submitted': True, 'round': round_data['Round']}
