@@ -499,6 +499,8 @@ def handle_submit(n_clicks, match1, match2, match3, round_data, user_data):
         1 if match2 == "left" else 0,
         1 if match3 == "left" else 0
     ]
+
+    print(user_data)
     
     # Submit results
     success = submit_results(round_data, results, user_data['row'])
