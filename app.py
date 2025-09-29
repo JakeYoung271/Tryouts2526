@@ -249,6 +249,7 @@ app.layout = dbc.Container([
         dbc.Row([
             dbc.Col([
                 html.H1("Assigned Groupings", className="text-center mb-4 text-primary"),
+                html.H4("Please select the winners of each match", className="text-center mb-4 text-secondary"),
                 
                 html.Div(id="tournament-content", children=[
                     dbc.Alert("No rounds available yet. Please wait for the tournament to begin.", 
