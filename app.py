@@ -343,10 +343,13 @@ def create_tournament_content(user_data, round_data, submit_state=None):
             # Submit button
             dbc.Row([
                 dbc.Col([
-                    dbc.Button("Submit Results", id="submit-button", color="success", 
-                             size="lg", className="w-100 mb-3", disabled=is_submitted) if not is_submitted
-                    else dbc.Alert("Thank you for submitting! Please wait for the next round.", 
-                                 color="success", className="text-center")
+                    html.Div(id='submit-button-container', children=[
+                        dbc.Button("Submit Results", id="submit-button", color="success", 
+                                size="lg", className="w-100 mb-3", disabled=is_submitted)
+                    ] if not is_submitted else [
+                        dbc.Alert("Thank you for submitting! Please wait for the next round.", 
+                                color="success", className="text-center")
+                    ])
                 ], width=12)
             ]),
             
@@ -481,6 +484,34 @@ def update_input_style(error_message):
     if error_message:
         return "form-control-lg border-danger"
     return "form-control-lg"
+
+@app.callback(
+    Output('submit-button-container', 'children'),
+    [Input('submit-button', 'n_clicks'),
+     Input('submit-state', 'data')],
+    [State('match1-radio', 'value'),
+     State('match2-radio', 'value'),
+     State('match3-radio', 'value')]
+)
+def update_submit_button(n_clicks, submit_state, match1, match2, match3):
+    ctx = dash.callback_context
+    
+    # Check if submit button was clicked
+    if ctx.triggered and ctx.triggered[0]['prop_id'] == 'submit-button.n_clicks' and n_clicks:
+        # Check if all matches selected
+        if all([match1, match2, match3]):
+            # Instantly show "submitting" state
+            return dbc.Button("Submitting...", color="secondary", 
+                            size="lg", className="w-100 mb-3", disabled=True)
+    
+    # Check submission state
+    if submit_state and submit_state.get('submitted'):
+        return dbc.Alert("Thank you for submitting! Please wait for the next round.", 
+                       color="success", className="text-center")
+    
+    # Default button state
+    return dbc.Button("Submit Results", id="submit-button", color="success", 
+                     size="lg", className="w-100 mb-3", disabled=False)
 
 # Callback for submit button
 @app.callback(
