@@ -11,6 +11,7 @@ from datetime import datetime
 
 # Initialize Dash app with Bootstrap theme for mobile responsiveness
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+server = app.server
 app.title = "Spikeball Tournament"
 app.config.suppress_callback_exceptions = True
 
@@ -19,7 +20,7 @@ USER_SHEET_ID = '1KmJBO5oKwygn-2AzwX-hS1wGeQMmLwyizFqtsSZo7_w'
 USER_DATA_GID = '900351397'
 
 TOURNAMENT_SHEET_ID = '1srq_lb7-c601uE3gSumhWltxsjXi3HRUVRHpdkgLu-w'
-TOURNAMENT_GID = '0'
+TOURNAMENT_GID = '1153687443'
 
 RESULTS_SHEET_ID = '1vuQ394gU_CSNEO-U0ZFVRTNC1jIWV1BT_yjGqoQQPOk'
 RESULTS_GID = '0'
@@ -187,13 +188,13 @@ def submit_results(round_data, results, username):
         }
         #entry.38731083
 
-        print(f"Results to submit: {new_row_data}")
+        #print(f"Results to submit: {new_row_data}")
         r = requests.post(form_url, data=new_row_data, timeout=10)
         if r.status_code != 200 and r.status_code != 302:
             print("Failed:", r.status_code)
         time.sleep(0.15)  # be gentle; Forms may throttle
         
-        print("✅ Results logged successfully (using demo mode)")
+        #print("✅ Results logged successfully (using demo mode)")
         return True
         
     except Exception as e:
@@ -231,13 +232,20 @@ app.layout = dbc.Container([
                         
                         html.Hr(),
                         
-                        html.P("If you haven't filled out the form, please fill it out:", 
-                              className="mb-3 fs-6"),
-                        
-                        dbc.Button("Fill Out Interest Form", 
-                                 href="https://docs.google.com/forms/u/1/d/e/1FAIpQLSdY8THwf05cBQXt5Zih-4nsAAXl64vNoqCpgPu4ltTnylX9bg/viewform",
-                                 color="success", size="lg", className="w-100",
-                                 external_link=True)
+                        html.Div(
+                            [
+                                html.P(
+                                    "If you haven't filled out the form, please fill it out:",
+                                    className="mb-0 me-2 fs-6"
+                                ),
+                                html.A(
+                                    "Interest Form",
+                                    href="https://docs.google.com/forms/u/1/d/e/1FAIpQLSdY8THwf05cBQXt5Zih-4nsAAXl64vNoqCpgPu4ltTnylX9bg/viewform",
+                                    target="_blank"
+                                )
+                            ],
+                            className="d-flex align-items-center"
+                        )
                     ])
                 ], className="shadow")
             ], width=12, md=8, lg=6, className="mx-auto")
@@ -249,6 +257,7 @@ app.layout = dbc.Container([
         dbc.Row([
             dbc.Col([
                 html.H1("Assigned Groupings", className="text-center mb-4 text-primary"),
+                html.H4("Please select the winners of each match", className="text-center mb-4 text-secondary"),
                 
                 html.Div(id="tournament-content", children=[
                     dbc.Alert("No rounds available yet. Please wait for the tournament to begin.", 
@@ -334,10 +343,13 @@ def create_tournament_content(user_data, round_data, submit_state=None):
             # Submit button
             dbc.Row([
                 dbc.Col([
-                    dbc.Button("Submit Results", id="submit-button", color="success", 
-                             size="lg", className="w-100 mb-3", disabled=is_submitted) if not is_submitted
-                    else dbc.Alert("Thank you for submitting! Please wait for the next round.", 
-                                 color="success", className="text-center")
+                    html.Div(id='submit-button-container', children=[
+                        dbc.Button("Submit Results", id="submit-button", color="success", 
+                                size="lg", className="w-100 mb-3", disabled=is_submitted)
+                    ] if not is_submitted else [
+                        dbc.Alert("Thank you for submitting! Please wait for the next round.", 
+                                color="success", className="text-center")
+                    ])
                 ], width=12)
             ]),
             
@@ -477,7 +489,8 @@ def update_input_style(error_message):
 @app.callback(
     [Output('submit-error', 'children'),
      Output('submit-status', 'children'),
-     Output('submit-state', 'data')],
+     Output('submit-state', 'data'),
+     Output('submit-button-container', 'children')],
     [Input('submit-button', 'n_clicks')],
     [State('match1-radio', 'value'),
      State('match2-radio', 'value'),
@@ -501,12 +514,9 @@ def handle_submit(n_clicks, match1, match2, match3, round_data, user_data):
     ]
     
     # Submit results
-    success = submit_results(round_data, results, user_data['name'])
-    
-    if success:
-        return "", "", {'submitted': True, 'round': round_data['Round']}
-    else:
-        return "Error submitting results. Please try again.", "", {'submitted': False, 'round': None}
+    submit_results(round_data, results, user_data['row'])
+    return "", "", {'submitted': True, 'round': round_data['Round']}, dbc.Alert("Thank you for submitting! Please wait for the next round.", 
+                       color="success", className="text-center")
 
 # Custom CSS for mobile optimization
 app.index_string = '''
