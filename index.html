@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spikeball Tournament</title>
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <!-- Custom Fonts + Styles -->
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+    .container-fluid.custom-wrapper {
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 15px;
+      margin-top: 20px;
+      margin-bottom: 20px;
+      padding: 1.5rem;
+    }
+    .card {
+      border: none;
+      border-radius: 15px;
+    }
+    .btn {
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .form-control, .form-control-lg {
+      border-radius: 10px;
+      border: 2px solid #e9ecef;
+    }
+    .form-control:focus, .form-control-lg:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+    .border-danger {
+      border-color: #dc3545 !important;
+    }
+    @media (max-width: 768px) {
+      .display-4 {
+        font-size: 2rem;
+      }
+      .btn-lg {
+        padding: 0.75rem 1.5rem;
+      }
+      .container-fluid.custom-wrapper {
+        margin-top: 10px;
+        margin-bottom: 10px;
+        border-radius: 10px;
+      }
+    }
+    .form-check-input:checked {
+      background-color: #667eea;
+      border-color: #667eea;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- React + ReactDOM + Babel for client-side JSX -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- PapaParse for CSV parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <script type="text/babel">
+    const { useEffect, useMemo, useRef, useState } = React;
+
+    // ====== CONFIG (Match the Python constants) ======
+    const USER_SHEET_ID = '1KmJBO5oKwygn-2AzwX-hS1wGeQMmLwyizFqtsSZo7_w';
+    const USER_DATA_GID = '900351397';
+
+    const TOURNAMENT_SHEET_ID = '1srq_lb7-c601uE3gSumhWltxsjXi3HRUVRHpdkgLu-w';
+    const TOURNAMENT_GID = '1153687443';
+
+    const RESULTS_SHEET_ID = '1vuQ394gU_CSNEO-U0ZFVRTNC1jIWV1BT_yjGqoQQPOk';
+    const RESULTS_GID = '0';
+
+    const USER_DATA_CSV_URL = `https://docs.google.com/spreadsheets/u/5/d/e/2PACX-1vTpI5VAhX84a6VRlP6DO3y6xBS4jLgr8MUf5xy26FJ78q-pbhPQQ0GXZQf-6FfjUdTov4jugwLWF1xo/pub?gid=900351397&single=true&output=csv`;
+    const TOURNAMENT_ROUNDS_CSV_URL = `https://docs.google.com/spreadsheets/d/${TOURNAMENT_SHEET_ID}/export?format=csv&gid=${TOURNAMENT_GID}`;
+    const RESULTS_CSV_URL = `https://docs.google.com/spreadsheets/d/${RESULTS_SHEET_ID}/export?format=csv&gid=${RESULTS_GID}`;
+
+    const GOOGLE_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSe4-6_u7UkQ6bmrKQj8mxcqgDF82v6DDjDA2pk3WaJKIyzc8g/formResponse";
+
+    // ====== Helpers ======
+    function parseCSVFromUrl(url) {
+      return new Promise((resolve, reject) => {
+        Papa.parse(url, {
+          download: true,
+          header: true,
+          skipEmptyLines: true,
+          complete: (res) => resolve(res.data),
+          error: (err) => reject(err)
+        });
+      });
+    }
+
+    async function checkUserExists(email) {
+      try {
+        const rows = await parseCSVFromUrl(USER_DATA_CSV_URL);
+        if (rows.length > 0) {
+          console.log('Available headers:', Object.keys(rows[0]));
+          console.log('First few rows:', rows.slice(0, 3));
+        }
+        // Normalize headers (trim)
+        const normalized = rows.map(r => {
+          const out = {};
+          Object.keys(r).forEach(k => out[k.trim()] = r[k]);
+          return out;
+        });
+        for (let i = 0; i < normalized.length; i++) {
+          const row = normalized[i];
+          const userEmail = String(row['UCLA email'] || '').trim().toLowerCase();
+          if (userEmail === String(email || '').trim().toLowerCase()) {
+            const fullName = String(row['First and Last name'] || '').trim();
+            const userId = fullName ? fullName.toLowerCase().replaceAll(' ', '_').replaceAll('.', '') : `user_${i+2}`;
+            return { name: fullName, row: i + 2, id: userId, email: userEmail };
+          }
+        }
+        return null;
+      } catch (e) {
+        console.error('Error checking user', e);
+        return null;
+      }
+    }
+
+    async function mapIdsToNames(idList) {
+      try {
+        const rows = await parseCSVFromUrl(USER_DATA_CSV_URL);
+        const normalized = rows.map(r => {
+          const out = {};
+          Object.keys(r).forEach(k => out[k.trim()] = r[k]);
+          return out;
+        });
+        const idToName = {};
+        normalized.forEach((rec, idx) => {
+          const fullNameVal = rec['First and Last name'];
+          const fullName = (fullNameVal === undefined || fullNameVal === null) ? '' : String(fullNameVal).trim();
+          const rowId = fullName ? fullName.toLowerCase().replaceAll(' ', '_').replaceAll('.', '') : `user_${idx+2}`;
+          idToName[idx + 2] = fullName || rowId;
+        });
+        return idList.map(id => idToName[id] || id);
+      } catch (e) {
+        console.error('Error mapping names', e);
+        return idList;
+      }
+    }
+
+    async function getTournamentRounds(userRow) {
+      try {
+        const rows = await parseCSVFromUrl(TOURNAMENT_ROUNDS_CSV_URL);
+        const normalized = rows.map(r => {
+          const out = {};
+          Object.keys(r).forEach(k => out[k.trim()] = r[k]);
+          return out;
+        });
+        const rounds = [];
+        normalized.forEach(r => {
+          const id1 = parseInt(String(r['id1'] || '').trim(), 10);
+          const id2 = parseInt(String(r['id2'] || '').trim(), 10);
+          const id3 = parseInt(String(r['id3'] || '').trim(), 10);
+          const id4 = parseInt(String(r['id4'] || '').trim(), 10);
+          if ([id1, id2, id3, id4].includes(userRow)) {
+            rounds.push({
+              Round: Number(r['Round'] || 0),
+              'Net Number': r['Net Number'] || 0,
+              id1, id2, id3, id4
+            });
+          }
+        });
+        return rounds;
+      } catch (e) {
+        console.error('Error getting rounds', e);
+        return [];
+      }
+    }
+
+    async function submitResults(roundData, results, usernameRow) {
+      // Build form-encoded payload; use no-cors (we cannot read response)
+      const formData = new URLSearchParams({
+        'entry.175605993': roundData.Round,
+        'entry.38731083': roundData['Net Number'],
+        'entry.1960261060': roundData.id1,
+        'entry.791831527': roundData.id2,
+        'entry.40405346': roundData.id3,
+        'entry.751547352': roundData.id4,
+        'entry.1089736874': results[0],
+        'entry.1449374216': results[1],
+        'entry.1388039134': results[2],
+        'entry.2146235891': usernameRow,
+      });
+      try {
+        await fetch(GOOGLE_FORM_URL, {
+          method: 'POST',
+          mode: 'no-cors', // Google Forms doesn't send CORS headers; this still submits.
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: formData.toString(),
+        });
+        return true;
+      } catch (e) {
+        console.error('Submit failed', e);
+        return false;
+      }
+    }
+
+    // ====== Components ======
+    function Alert({ color = 'info', children }) {
+      const cls = `alert alert-${color} text-center`;
+      return <div className={cls} role="alert">{children}</div>;
+    }
+
+    function LoginPage({ onLogin, loginError }) {
+      const [email, setEmail] = useState('');
+      const onSubmit = (e) => {
+        e.preventDefault();
+        onLogin(email);
+      };
+      return (
+        <div id="login-page" style={{ display: 'block' }}>
+          <div className="row">
+            <div className="col-12 col-md-8 col-lg-6 mx-auto">
+              <h1 className="text-center mb-4 display-4 fw-bold text-primary">Welcome to Spikeball!</h1>
+              <div className="card shadow">
+                <div className="card-body">
+                  <p className="mb-3 fs-6">If you have already filled out our interest form, please fill in your email used in the form:</p>
+                  <form onSubmit={onSubmit}>
+                    <div className="input-group mb-3">
+                      <input
+                        id="email-input"
+                        type="email"
+                        className={`form-control form-control-lg ${loginError ? 'border-danger' : ''}`}
+                        placeholder="Enter your UCLA email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                      />
+                      <button className="btn btn-primary btn-lg" id="login-button" type="submit">Enter</button>
+                    </div>
+                  </form>
+                  {loginError ? <div id="login-error" className="text-danger mb-3">{loginError}</div> : <div id="login-error" className="mb-3" />} 
+                  <hr />
+                  <div className="d-flex align-items-center">
+                    <p className="mb-0 me-2 fs-6">If you haven't filled out the form, please fill it out:</p>
+                    <a href="https://docs.google.com/forms/u/1/d/e/1FAIpQLSdY8THwf05cBQXt5Zih-4nsAAXl64vNoqCpgPu4ltTnylX9bg/viewform" target="_blank" rel="noreferrer">Interest Form</a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function TournamentCard({ userData, roundData, submitState, onSubmit, disabled }) {
+      const [m1, setM1] = useState(null);
+      const [m2, setM2] = useState(null);
+      const [m3, setM3] = useState(null);
+      const [names, setNames] = useState([roundData.id1, roundData.id2, roundData.id3, roundData.id4]);
+
+      const isSubmitted = submitState?.submitted && submitState?.round === roundData.Round;
+
+      useEffect(() => {
+        let alive = true;
+        (async () => {
+          const mapped = await mapIdsToNames([roundData.id1, roundData.id2, roundData.id3, roundData.id4]);
+          if (alive) setNames(mapped);
+        })();
+        return () => { alive = false; };
+      }, [roundData.id1, roundData.id2, roundData.id3, roundData.id4]);
+
+      const handleSubmitClick = async () => {
+        if (!(m1 && m2 && m3)) return; // require all
+        const results = [m1 === 'left' ? 1 : 0, m2 === 'left' ? 1 : 0, m3 === 'left' ? 1 : 0];
+        const ok = await onSubmit(roundData, results, userData.row);
+        if (!ok) {
+          alert('Submission may have failed. Try again later.');
+        }
+      };
+
+      return (
+        <div className="card shadow">
+          <div className="card-body">
+            <h4 className="text-center mb-4 text-info">Round Number: {roundData.Round}</h4>
+            <h6 className="text-center mb-4 text-secondary">Net Number: {roundData['Net Number']}</h6>
+
+            {/* Match 1 */}
+            <div className="row mb-3">
+              <div className="col-12 text-center">
+                <span className="fw-bold me-2">Match 1: </span>
+                <div className="d-inline-flex gap-3 align-items-center">
+                  <div className="form-check form-check-inline">
+                    <input className="form-check-input" type="radio" name="m1" id="m1l" value="left" onChange={(e)=>setM1(e.target.value)} checked={m1==='left'} />
+                    <label className="form-check-label" htmlFor="m1l">{names[0]}/{names[1]}</label>
+                  </div>
+                  <div className="form-check form-check-inline">
+                    <input className="form-check-input" type="radio" name="m1" id="m1r" value="right" onChange={(e)=>setM1(e.target.value)} checked={m1==='right'} />
+                    <label className="form-check-label" htmlFor="m1r">{names[2]}/{names[3]}</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Match 2 */}
+            <div className="row mb-3">
+              <div className="col-12 text-center">
+                <span className="fw-bold me-2">Match 2: </span>
+                <div className="d-inline-flex gap-3 align-items-center">
+                  <div className="form-check form-check-inline">
+                    <input className="form-check-input" type="radio" name="m2" id="m2l" value="left" onChange={(e)=>setM2(e.target.value)} checked={m2==='left'} />
+                    <label className="form-check-label" htmlFor="m2l">{names[0]}/{names[2]}</label>
+                  </div>
+                  <div className="form-check form-check-inline">
+                    <input className="form-check-input" type="radio" name="m2" id="m2r" value="right" onChange={(e)=>setM2(e.target.value)} checked={m2==='right'} />
+                    <label className="form-check-label" htmlFor="m2r">{names[1]}/{names[3]}</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Match 3 */}
+            <div className="row mb-4">
+              <div className="col-12 text-center">
+                <span className="fw-bold me-2">Match 3: </span>
+                <div className="d-inline-flex gap-3 align-items-center">
+                  <div className="form-check form-check-inline">
+                    <input className="form-check-input" type="radio" name="m3" id="m3l" value="left" onChange={(e)=>setM3(e.target.value)} checked={m3==='left'} />
+                    <label className="form-check-label" htmlFor="m3l">{names[0]}/{names[3]}</label>
+                  </div>
+                  <div className="form-check form-check-inline">
+                    <input className="form-check-input" type="radio" name="m3" id="m3r" value="right" onChange={(e)=>setM3(e.target.value)} checked={m3==='right'} />
+                    <label className="form-check-label" htmlFor="m3r">{names[1]}/{names[2]}</label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Submit */}
+            <div className="row">
+              <div className="col-12">
+                {!isSubmitted ? (
+                  <button className="btn btn-success btn-lg w-100 mb-3" id="submit-button" disabled={disabled || !(m1&&m2&&m3)} onClick={handleSubmitClick}>
+                    Submit Results
+                  </button>
+                ) : (
+                  <div className="alert alert-success text-center">Thank you for submitting! Please wait for the next round.</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function TournamentPage({ userData, currentRoundData, submitState, onSubmit }) {
+      return (
+        <div id="tournament-page" style={{ display: 'block' }}>
+          <div className="row">
+            <div className="col-12 col-md-10 col-lg-8 mx-auto">
+              <h1 className="text-center mb-4 text-primary">Assigned Groupings</h1>
+              <h4 className="text-center mb-4 text-secondary">Please select the winners of each match</h4>
+              {currentRoundData ? (
+                <TournamentCard
+                  userData={userData}
+                  roundData={currentRoundData}
+                  submitState={submitState}
+                  onSubmit={onSubmit}
+                />
+              ) : (
+                <Alert color="info">No rounds available yet. Please wait for the tournament to begin.</Alert>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [page, setPage] = useState('login');
+      const [userData, setUserData] = useState(null);
+      const [currentRoundData, setCurrentRoundData] = useState(null);
+      const [loginError, setLoginError] = useState('');
+      const [submitState, setSubmitState] = useState({ submitted: false, round: null });
+
+      // Poll new rounds every 10s when logged in
+      useEffect(() => {
+        if (!userData) return;
+        let timer = null;
+        const tick = async () => {
+          const rounds = await getTournamentRounds(userData.row);
+          const latest = rounds.length ? rounds.reduce((a, b) => a.Round > b.Round ? a : b) : null;
+          if (latest && (!currentRoundData || latest.Round > currentRoundData.Round)) {
+            setCurrentRoundData(latest);
+            // keep submit state (it disables prior round only)
+          }
+        };
+        tick();
+        timer = setInterval(tick, 10000);
+        return () => clearInterval(timer);
+      }, [userData, currentRoundData]);
+
+      const handleLogin = async (email) => {
+        setLoginError('');
+        const info = await checkUserExists(email);
+        if (!info) {
+          setUserData(null);
+          setCurrentRoundData(null);
+          setPage('login');
+          setLoginError("User doesn't exist. Please check your email or fill out the interest form.");
+          return;
+        }
+        const rounds = await getTournamentRounds(info.row);
+        const latest = rounds.length ? rounds.reduce((a, b) => a.Round > b.Round ? a : b) : null;
+        setUserData(info);
+        setCurrentRoundData(latest);
+        setPage('tournament');
+      };
+
+      const handleSubmit = async (roundData, results, usernameRow) => {
+        const ok = await submitResults(roundData, results, usernameRow);
+        if (ok) {
+          setSubmitState({ submitted: true, round: roundData.Round });
+        }
+        return ok;
+      };
+
+      return (
+        <div className="container-fluid custom-wrapper">
+          {page === 'login' && (
+            <LoginPage onLogin={handleLogin} loginError={loginError} />
+          )}
+          {page === 'tournament' && (
+            <TournamentPage
+              userData={userData}
+              currentRoundData={currentRoundData}
+              submitState={submitState}
+              onSubmit={handleSubmit}
+            />
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
