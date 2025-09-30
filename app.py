@@ -188,13 +188,13 @@ def submit_results(round_data, results, username):
         }
         #entry.38731083
 
-        print(f"Results to submit: {new_row_data}")
+        #print(f"Results to submit: {new_row_data}")
         r = requests.post(form_url, data=new_row_data, timeout=10)
         if r.status_code != 200 and r.status_code != 302:
             print("Failed:", r.status_code)
         time.sleep(0.15)  # be gentle; Forms may throttle
         
-        print("✅ Results logged successfully (using demo mode)")
+        #print("✅ Results logged successfully (using demo mode)")
         return True
         
     except Exception as e:
@@ -485,39 +485,12 @@ def update_input_style(error_message):
         return "form-control-lg border-danger"
     return "form-control-lg"
 
-@app.callback(
-    Output('submit-button-container', 'children'),
-    [Input('submit-button', 'n_clicks'),
-     Input('submit-state', 'data')],
-    [State('match1-radio', 'value'),
-     State('match2-radio', 'value'),
-     State('match3-radio', 'value')]
-)
-def update_submit_button(n_clicks, submit_state, match1, match2, match3):
-    ctx = dash.callback_context
-    
-    # Check if submit button was clicked
-    if ctx.triggered and ctx.triggered[0]['prop_id'] == 'submit-button.n_clicks' and n_clicks:
-        # Check if all matches selected
-        if all([match1, match2, match3]):
-            # Instantly show "submitting" state
-            return dbc.Button("Submitting...", color="secondary", 
-                            size="lg", className="w-100 mb-3", disabled=True)
-    
-    # Check submission state
-    if submit_state and submit_state.get('submitted'):
-        return dbc.Alert("Thank you for submitting! Please wait for the next round.", 
-                       color="success", className="text-center")
-    
-    # Default button state
-    return dbc.Button("Submit Results", id="submit-button", color="success", 
-                     size="lg", className="w-100 mb-3", disabled=False)
-
 # Callback for submit button
 @app.callback(
     [Output('submit-error', 'children'),
      Output('submit-status', 'children'),
-     Output('submit-state', 'data')],
+     Output('submit-state', 'data'),
+     Output('submit-button-container', 'children')],
     [Input('submit-button', 'n_clicks')],
     [State('match1-radio', 'value'),
      State('match2-radio', 'value'),
@@ -539,16 +512,11 @@ def handle_submit(n_clicks, match1, match2, match3, round_data, user_data):
         1 if match2 == "left" else 0,
         1 if match3 == "left" else 0
     ]
-
-    print(user_data)
     
     # Submit results
-    success = submit_results(round_data, results, user_data['row'])
-    
-    if success:
-        return "", "", {'submitted': True, 'round': round_data['Round']}
-    else:
-        return "Error submitting results. Please try again.", "", {'submitted': False, 'round': None}
+    submit_results(round_data, results, user_data['row'])
+    return "", "", {'submitted': True, 'round': round_data['Round']}, dbc.Alert("Thank you for submitting! Please wait for the next round.", 
+                       color="success", className="text-center")
 
 # Custom CSS for mobile optimization
 app.index_string = '''
